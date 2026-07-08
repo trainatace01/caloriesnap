@@ -5,7 +5,7 @@
    Bump CACHE_VERSION whenever app files change to roll out updates.
 */
 
-const CACHE_VERSION = "caloriesnap-v1";
+const CACHE_VERSION = "caloriesnap-v2";
 const RUNTIME_CACHE = "caloriesnap-runtime-v1";
 
 const FOOD_IMAGES = [
@@ -29,6 +29,7 @@ const PRECACHE = [
   "js/classifier.js",
   "js/nutrition.js",
   "js/barcode.js",
+  "js/charts.js",
   "js/app.js",
   "icons/icon.svg",
   "icons/icon-192.png",

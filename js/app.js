@@ -19,6 +19,91 @@
   function allFoods() { return FOODS.concat(customFoods); }
   function findFood(id) { return allFoods().find(f => f.id === id); }
 
+  /* ---------- user-defined meal categories ---------- */
+  const MEAL_KEY = "caloriesnap_meal_categories";
+  const LAST_CAT_KEY = "caloriesnap_last_category";
+  const DEFAULT_MEAL_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
+  let mealCategories = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(MEAL_KEY));
+      if (Array.isArray(saved)) return saved;
+    } catch { /* fall through to seed */ }
+    localStorage.setItem(MEAL_KEY, JSON.stringify(DEFAULT_MEAL_CATEGORIES));
+    return DEFAULT_MEAL_CATEGORIES.slice();
+  })();
+
+  function persistMealCategories() {
+    try { localStorage.setItem(MEAL_KEY, JSON.stringify(mealCategories)); } catch { /* quota */ }
+  }
+  function getMealCategories() { return mealCategories; }
+  function addMealCategory(name) {
+    name = name.trim();
+    if (!name) return false;
+    if (mealCategories.some(c => c.toLowerCase() === name.toLowerCase())) return false;
+    mealCategories.push(name);
+    persistMealCategories();
+    return true;
+  }
+  function renameMealCategory(oldName, newName) {
+    newName = newName.trim();
+    const i = mealCategories.indexOf(oldName);
+    if (i < 0 || !newName) return;
+    mealCategories[i] = newName;
+    persistMealCategories();
+  }
+  function deleteMealCategory(name) {
+    mealCategories = mealCategories.filter(c => c !== name);
+    persistMealCategories();
+  }
+  function getLastCategory() {
+    return localStorage.getItem(LAST_CAT_KEY) || mealCategories[0] || "";
+  }
+  function setLastCategory(name) { localStorage.setItem(LAST_CAT_KEY, name); }
+
+  const escAttr = s => String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+  // Reusable meal-category chip picker (used on the scan result + library modal).
+  function renderMealPicker(containerId, selected) {
+    const chips = getMealCategories().map(c =>
+      `<button type="button" class="meal-chip${c === selected ? " active" : ""}" data-cat="${escAttr(c)}">${escAttr(c)}</button>`
+    ).join("");
+    $(containerId).innerHTML =
+      `<div class="meal-picker-label">Meal category</div>
+       <div class="meal-chips">${chips}<button type="button" class="meal-chip meal-chip-new" data-new="1">＋ New</button></div>`;
+  }
+
+  function renderMealNewInput(containerId) {
+    $(containerId).innerHTML =
+      `<div class="meal-picker-label">New meal category</div>
+       <div class="meal-new-row">
+         <input class="meal-new-input" type="text" maxlength="30" placeholder="e.g. Office Lunch" autocomplete="off">
+         <button type="button" class="meal-new-save">Add</button>
+         <button type="button" class="meal-new-cancel">Cancel</button>
+       </div>`;
+    const inp = $(containerId).querySelector(".meal-new-input");
+    if (inp) inp.focus();
+  }
+
+  function setupMealPicker(containerId, getSelected, setSelected) {
+    const el = $(containerId);
+    const commitNew = () => {
+      const name = el.querySelector(".meal-new-input").value.trim();
+      if (name) { addMealCategory(name); setSelected(name); setLastCategory(name); }
+      renderMealPicker(containerId, getSelected());
+    };
+    el.addEventListener("click", e => {
+      if (e.target.closest(".meal-chip-new")) return renderMealNewInput(containerId);
+      const chip = e.target.closest(".meal-chip[data-cat]");
+      if (chip) { setSelected(chip.dataset.cat); setLastCategory(chip.dataset.cat); return renderMealPicker(containerId, getSelected()); }
+      if (e.target.closest(".meal-new-save")) return commitNew();
+      if (e.target.closest(".meal-new-cancel")) return renderMealPicker(containerId, getSelected());
+    });
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.classList.contains("meal-new-input")) { e.preventDefault(); commitNew(); }
+    });
+  }
+
   /* ---------- food images ---------- */
   const PLACEHOLDER_IMG = "data:image/svg+xml," + encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90"><rect width="120" height="90" fill="#e7e5e4"/><text x="60" y="55" font-size="34" text-anchor="middle">🍽️</text></svg>`);
@@ -108,6 +193,7 @@
     document.querySelectorAll(".nav-btn").forEach(b =>
       b.classList.toggle("active", b.dataset.view === name));
     if (name === "history") renderHistory();
+    if (name === "stats") renderStats();
     window.scrollTo({ top: 0 });
   }
 
@@ -220,6 +306,8 @@
     $("modal-serving").textContent = dish.servingDesc ? "Typical serving: " + dish.servingDesc : "";
     $("modal-ingredients").innerHTML = ingredientChips(dish);
     $("modal-remove").hidden = !dish.custom;
+    modalState.mealCategory = getLastCategory();
+    renderMealPicker("modal-meal-picker", modalState.mealCategory);
     renderPortionCards("modal-portions", 1);
     // reset collapsible to closed
     $("modal-details").hidden = true;
@@ -267,6 +355,7 @@
       dishId: modalState.dish.id,
       name: modalState.dish.name,
       category: modalState.dish.category,
+      mealCategory: modalState.mealCategory || getLastCategory(),
       portionIdx: modalState.portionIdx,
       prepIdx: 0,
       calories: s.calories,
@@ -275,7 +364,7 @@
       time: Date.now(),
     });
     closeModal();
-    toast("Added to history ✓");
+    toast("Logged ✓");
   });
 
   function ingredientChips(dish) {
@@ -447,6 +536,8 @@
       $("result-ingredients").innerHTML = ingredientChips(dish);
       $("result-details").hidden = true;
       $("result-details-toggle").setAttribute("aria-expanded", "false");
+      if (!currentScan.mealCategory) currentScan.mealCategory = getLastCategory();
+      renderMealPicker("result-meal-picker", currentScan.mealCategory);
       updateResultNutrition();
     } else {
       // No AI match → prompt manual selection
@@ -519,6 +610,7 @@
       dishId: currentScan.dish.id,
       name: currentScan.dish.name,
       category: currentScan.dish.category,
+      mealCategory: currentScan.mealCategory || getLastCategory(),
       portionIdx: currentScan.portionIdx,
       prepIdx: currentScan.prepIdx || 0,
       calories: s.calories,
@@ -527,7 +619,7 @@
       photo: thumb,
       time: Date.now(),
     });
-    toast("Saved to history ✓");
+    toast("Logged ✓");
     currentScan = null;
     showScanStage("scan-home");
     showView("history");
@@ -632,16 +724,22 @@
 
   function getGoal() { return +localStorage.getItem(GOAL_KEY) || 2000; }
 
+  // Totals + entries for any time window [fromTs, toTs).
+  function rangeTotals(fromTs, toTs) {
+    const entries = loadHistory().filter(e => e.time >= fromTs && e.time < toTs);
+    const totals = entries.reduce((t, e) => ({
+      calories: t.calories + (e.calories || 0),
+      protein: t.protein + (e.protein || 0),
+      carbs: t.carbs + (e.carbs || 0),
+      fat: t.fat + (e.fat || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    return { ...totals, entries };
+  }
+
+  function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+
   function todayTotals() {
-    const today = new Date().toDateString();
-    return loadHistory()
-      .filter(e => new Date(e.time).toDateString() === today)
-      .reduce((t, e) => ({
-        calories: t.calories + (e.calories || 0),
-        protein: t.protein + (e.protein || 0),
-        carbs: t.carbs + (e.carbs || 0),
-        fat: t.fat + (e.fat || 0),
-      }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    return rangeTotals(startOfToday().getTime(), Date.now() + 1);
   }
 
   function renderDashboard() {
@@ -665,7 +763,7 @@
         <text x="50" y="63" class="ring-sub">/ ${goal} kcal</text>
       </svg>
       <div class="dash-info">
-        <div class="dash-title">Today's summary <button type="button" class="dash-goal-btn">✎ Goal</button></div>
+        <div class="dash-title">Calories Consumed Today <button type="button" class="dash-goal-btn">✎ Goal</button></div>
         ${bar("p", "P", t.protein, MACRO_TARGETS.protein)}
         ${bar("c", "C", t.carbs, MACRO_TARGETS.carbs)}
         ${bar("f", "F", t.fat, MACRO_TARGETS.fat)}
@@ -710,7 +808,8 @@
         <div class="history-thumb">${thumb}</div>
         <div class="history-info">
           <div class="history-name">${e.name}</div>
-          <div class="history-meta">${e.category} · ${PORTIONS[e.portionIdx].key} portion${prep}${conf}<br>${fmtTime(e.time)}</div>
+          <div class="hist-mealcat">${e.mealCategory || "Uncategorized"}</div>
+          <div class="history-meta">${PORTIONS[e.portionIdx].key} portion${prep}${conf} · ${fmtTime(e.time)}</div>
         </div>
         <div class="history-cal">${e.calories} kcal</div>
         <button class="history-delete" data-index="${i}" aria-label="Delete entry">🗑</button>
@@ -827,6 +926,7 @@
   $("btn-add-new").addEventListener("click", openAddFood);
   $("btn-add-new-2").addEventListener("click", openAddFood);
   $("addfood-close").addEventListener("click", closeAddFood);
+  $("af-cancel").addEventListener("click", closeAddFood);
   $("addfood-backdrop").addEventListener("click", e => {
     if (e.target === $("addfood-backdrop")) closeAddFood();
   });
@@ -885,10 +985,113 @@
     toast(`Added "${name}" to ${category} ✓`);
   });
 
+  /* ---------- Stats tab (time views + analytics) ---------- */
+  let statsRange = "today";
+
+  function rangeBounds(key) {
+    const startToday = startOfToday();
+    if (key === "yesterday") {
+      const y = new Date(startToday); y.setDate(y.getDate() - 1);
+      return { from: y.getTime(), to: startToday.getTime(), days: 1, label: "yesterday" };
+    }
+    if (key === "week") {
+      const d = new Date(startToday);
+      const dow = (d.getDay() + 6) % 7; // Monday = 0
+      d.setDate(d.getDate() - dow);
+      return { from: d.getTime(), to: Date.now() + 1, days: dow + 1, label: "this week" };
+    }
+    if (key === "month") {
+      const m = new Date(startToday.getFullYear(), startToday.getMonth(), 1);
+      return { from: m.getTime(), to: Date.now() + 1, days: new Date().getDate(), label: "this month" };
+    }
+    return { from: startToday.getTime(), to: Date.now() + 1, days: 1, label: "today" };
+  }
+
+  function renderStats() {
+    const b = rangeBounds(statsRange);
+    const t = rangeTotals(b.from, b.to);
+    const goal = getGoal();
+    const showAvg = statsRange === "week" || statsRange === "month";
+    const avg = Math.round(t.calories / Math.max(1, b.days));
+    $("stats-summary").innerHTML =
+      `<div><span class="stats-sum-total">${t.calories}</span><span class="stats-sum-unit">kcal ${b.label}</span></div>
+       ${showAvg
+        ? `<div class="stats-sum-sub">Daily average: <strong>${avg}</strong> kcal · goal ${goal}</div>`
+        : `<div class="stats-sum-sub">Daily goal ${goal} kcal</div>`}
+       <div class="stats-sum-macros"><span class="p">P ${Math.round(t.protein)}g</span><span class="c">C ${Math.round(t.carbs)}g</span><span class="f">F ${Math.round(t.fat)}g</span></div>`;
+
+    const history = loadHistory();
+    $("chart-over-time").innerHTML = Charts.caloriesOverTime(history, goal);
+    $("chart-weekday").innerHTML = Charts.weekdayAverages(history);
+    $("chart-category").innerHTML = Charts.categoryBreakdown(t.entries);
+    $("stats-insight").innerHTML = Charts.insights(history);
+  }
+
+  $("stats-range").addEventListener("click", e => {
+    const pill = e.target.closest(".range-pill");
+    if (!pill) return;
+    statsRange = pill.dataset.range;
+    $("stats-range").querySelectorAll(".range-pill").forEach(p => p.classList.toggle("active", p === pill));
+    renderStats();
+  });
+
+  /* ---------- manage meal categories sheet ---------- */
+  function renderMealManage() {
+    const rows = getMealCategories().map(c =>
+      `<div class="mealcat-row" data-cat="${escAttr(c)}">
+         <input type="text" value="${escAttr(c)}" maxlength="30" aria-label="Category name">
+         <button type="button" class="mealcat-del" aria-label="Delete category">🗑</button>
+       </div>`
+    ).join("");
+    $("mealcat-list").innerHTML = rows || `<p class="chart-empty">No categories yet — add one below.</p>`;
+  }
+  function openMealManage() {
+    renderMealManage();
+    $("mealcat-backdrop").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function closeMealManage() {
+    $("mealcat-backdrop").hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  $("btn-manage-cats").addEventListener("click", openMealManage);
+  $("mealcat-close").addEventListener("click", closeMealManage);
+  $("mealcat-backdrop").addEventListener("click", e => { if (e.target === $("mealcat-backdrop")) closeMealManage(); });
+  $("mealcat-add-btn").addEventListener("click", () => {
+    const inp = $("mealcat-add-input");
+    if (addMealCategory(inp.value)) { inp.value = ""; renderMealManage(); }
+    else toast("Enter a new, unique name");
+  });
+  $("mealcat-add-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); $("mealcat-add-btn").click(); }
+  });
+  $("mealcat-list").addEventListener("click", e => {
+    const del = e.target.closest(".mealcat-del");
+    if (!del) return;
+    const cat = del.closest(".mealcat-row").dataset.cat;
+    if (getMealCategories().length <= 1) { toast("Keep at least one category"); return; }
+    if (confirm(`Delete "${cat}"? Past logs keep their label.`)) { deleteMealCategory(cat); renderMealManage(); }
+  });
+  $("mealcat-list").addEventListener("change", e => {
+    const inp = e.target.closest("input");
+    if (!inp) return;
+    const row = inp.closest(".mealcat-row");
+    const oldName = row.dataset.cat;
+    const newName = inp.value.trim();
+    if (!newName || newName === oldName) { inp.value = oldName; return; }
+    if (getMealCategories().some(c => c.toLowerCase() === newName.toLowerCase() && c !== oldName)) {
+      toast("That name already exists"); inp.value = oldName; return;
+    }
+    renameMealCategory(oldName, newName);
+    row.dataset.cat = newName;
+  });
+
   /* ---------- logo → back to home ---------- */
   $("logo-home").addEventListener("click", () => {
     closeModal();
     closeAddFood();
+    closeMealManage();
     closeCamera();
     exitPickerMode();
     currentScan = null;
@@ -897,6 +1100,13 @@
   });
 
   /* ---------- init ---------- */
+  setupMealPicker("result-meal-picker",
+    () => currentScan && currentScan.mealCategory,
+    v => { if (currentScan) currentScan.mealCategory = v; });
+  setupMealPicker("modal-meal-picker",
+    () => modalState && modalState.mealCategory,
+    v => { if (modalState) modalState.mealCategory = v; });
+
   renderTabs();
   renderGrid();
   renderHistory();

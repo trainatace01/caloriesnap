@@ -107,8 +107,10 @@
             <div id="result-ingredients" class="chip-list"></div>
           </div>
 
+          <div id="result-meal-picker" class="meal-picker"></div>
+
           <div class="result-actions">
-            <button id="btn-save" class="btn btn-primary">✓ Save to History</button>
+            <button id="btn-save" class="btn btn-primary">✓ Log Meal</button>
             <button id="btn-rescan" class="btn btn-secondary">↺ Scan Again</button>
           </div>
         </div>
@@ -157,6 +159,33 @@
     </div>
   </section>
 
+  <!-- ============ STATS VIEW ============ -->
+  <section id="view-stats" class="view">
+    <div class="stats-range" id="stats-range" role="tablist">
+      <button class="range-pill active" data-range="today">Today</button>
+      <button class="range-pill" data-range="yesterday">Yesterday</button>
+      <button class="range-pill" data-range="week">This Week</button>
+      <button class="range-pill" data-range="month">This Month</button>
+    </div>
+    <div id="stats-summary" class="stats-summary card"></div>
+
+    <div class="stats-section">
+      <h3 class="stats-h">Calories over time</h3>
+      <div id="chart-over-time" class="chart-box"></div>
+    </div>
+    <div class="stats-section">
+      <h3 class="stats-h">Average by day of week</h3>
+      <div id="chart-weekday" class="chart-box"></div>
+    </div>
+    <div class="stats-section">
+      <h3 class="stats-h">By meal category</h3>
+      <div id="chart-category" class="chart-box"></div>
+    </div>
+
+    <div id="stats-insight" class="stats-insight"></div>
+    <button id="btn-manage-cats" class="btn btn-secondary btn-full">⚙ Manage meal categories</button>
+  </section>
+
 </main>
 
 <!-- ============ FOOD DETAIL MODAL (bottom sheet) ============ -->
@@ -192,7 +221,8 @@
         <div id="modal-ingredients" class="chip-list"></div>
       </div>
 
-      <button id="modal-add" class="btn btn-primary">＋ Add to History</button>
+      <div id="modal-meal-picker" class="meal-picker"></div>
+      <button id="modal-add" class="btn btn-primary">＋ Log Meal</button>
       <button id="modal-remove" class="btn-link danger" hidden>Remove from library</button>
     </div>
   </div>
@@ -232,7 +262,24 @@
         </label>
         <p id="af-error" class="form-error" hidden></p>
         <button type="submit" class="btn btn-primary">✓ Save to Library</button>
+        <button type="button" id="af-cancel" class="btn btn-secondary btn-full">← Cancel</button>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MANAGE MEAL CATEGORIES SHEET ============ -->
+<div id="mealcat-backdrop" class="modal-backdrop" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true">
+    <button id="mealcat-close" class="modal-close" aria-label="Close">✕</button>
+    <div class="modal-body">
+      <h2>Meal Categories</h2>
+      <p class="form-hint">Organize your logged meals your way (e.g. Snacks, Office Lunches). Separate from the cuisine tabs in Browse Menu.</p>
+      <div id="mealcat-list" class="mealcat-list"></div>
+      <div class="meal-new-row">
+        <input id="mealcat-add-input" type="text" maxlength="30" placeholder="Add a category…" autocomplete="off">
+        <button type="button" id="mealcat-add-btn" class="meal-new-save">＋ Add</button>
+      </div>
     </div>
   </div>
 </div>
@@ -254,8 +301,9 @@
 <!-- ============ BOTTOM NAV ============ -->
 <nav class="bottom-nav">
   <button class="nav-btn active" data-view="scan"><span class="nav-icon">📷</span><span>Scan</span></button>
-  <button class="nav-btn" data-view="library"><span class="nav-icon">📖</span><span>Browse Menu</span></button>
+  <button class="nav-btn" data-view="library"><span class="nav-icon">📖</span><span>Menu</span></button>
   <button class="nav-btn" data-view="history"><span class="nav-icon">🕘</span><span>History</span></button>
+  <button class="nav-btn" data-view="stats"><span class="nav-icon">📊</span><span>Stats</span></button>
 </nav>
 
 <div id="toast" class="toast" hidden></div>
@@ -264,6 +312,7 @@
 <script src="js/classifier.js"></script>
 <script src="js/nutrition.js"></script>
 <script src="js/barcode.js"></script>
+<script src="js/charts.js"></script>
 <script src="js/app.js"></script>
 <script>
   // Installable app support: register the service worker (HTTPS/localhost only).
