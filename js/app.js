@@ -19,89 +19,78 @@
   function allFoods() { return FOODS.concat(customFoods); }
   function findFood(id) { return allFoods().find(f => f.id === id); }
 
-  /* ---------- user-defined meal categories ---------- */
-  const MEAL_KEY = "caloriesnap_meal_categories";
-  const LAST_CAT_KEY = "caloriesnap_last_category";
-  const DEFAULT_MEAL_CATEGORIES = ["Breakfast", "Lunch", "Dinner", "Snack"];
-
-  let mealCategories = (() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(MEAL_KEY));
-      if (Array.isArray(saved)) return saved;
-    } catch { /* fall through to seed */ }
-    localStorage.setItem(MEAL_KEY, JSON.stringify(DEFAULT_MEAL_CATEGORIES));
-    return DEFAULT_MEAL_CATEGORIES.slice();
-  })();
-
-  function persistMealCategories() {
-    try { localStorage.setItem(MEAL_KEY, JSON.stringify(mealCategories)); } catch { /* quota */ }
-  }
-  function getMealCategories() { return mealCategories; }
-  function addMealCategory(name) {
-    name = name.trim();
-    if (!name) return false;
-    if (mealCategories.some(c => c.toLowerCase() === name.toLowerCase())) return false;
-    mealCategories.push(name);
-    persistMealCategories();
-    return true;
-  }
-  function renameMealCategory(oldName, newName) {
-    newName = newName.trim();
-    const i = mealCategories.indexOf(oldName);
-    if (i < 0 || !newName) return;
-    mealCategories[i] = newName;
-    persistMealCategories();
-  }
-  function deleteMealCategory(name) {
-    mealCategories = mealCategories.filter(c => c !== name);
-    persistMealCategories();
-  }
-  function getLastCategory() {
-    return localStorage.getItem(LAST_CAT_KEY) || mealCategories[0] || "";
-  }
-  function setLastCategory(name) { localStorage.setItem(LAST_CAT_KEY, name); }
-
   const escAttr = s => String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-  // Reusable meal-category chip picker (used on the scan result + library modal).
-  function renderMealPicker(containerId, selected) {
-    const chips = getMealCategories().map(c =>
-      `<button type="button" class="meal-chip${c === selected ? " active" : ""}" data-cat="${escAttr(c)}">${escAttr(c)}</button>`
-    ).join("");
-    $(containerId).innerHTML =
-      `<div class="meal-picker-label">Meal category</div>
-       <div class="meal-chips">${chips}<button type="button" class="meal-chip meal-chip-new" data-new="1">＋ New</button></div>`;
+  /* ---------- cuisine tags (core + user-added, extendable) ---------- */
+  const CUISINE_KEY = "caloriesnap_custom_cuisines";
+  const LAST_CUISINE_KEY = "caloriesnap_last_cuisine";
+  let customCuisines = (() => {
+    try { const s = JSON.parse(localStorage.getItem(CUISINE_KEY)); return Array.isArray(s) ? s : []; }
+    catch { return []; }
+  })();
+  function persistCustomCuisines() { try { localStorage.setItem(CUISINE_KEY, JSON.stringify(customCuisines)); } catch { /* quota */ } }
+  function allCuisines() { return CATEGORIES.concat(customCuisines); }
+  function isCoreCuisine(name) { return CATEGORIES.includes(name); }
+  function addCuisine(name) {
+    name = name.trim();
+    if (!name) return false;
+    if (allCuisines().some(c => c.toLowerCase() === name.toLowerCase())) return false;
+    customCuisines.push(name); persistCustomCuisines(); return true;
   }
+  function renameCuisine(oldName, newName) {
+    newName = newName.trim();
+    const i = customCuisines.indexOf(oldName);
+    if (i < 0 || !newName || allCuisines().some(c => c.toLowerCase() === newName.toLowerCase())) return;
+    customCuisines[i] = newName; persistCustomCuisines();
+  }
+  function deleteCuisine(name) { customCuisines = customCuisines.filter(c => c !== name); persistCustomCuisines(); }
+  function getLastCuisine() { return localStorage.getItem(LAST_CUISINE_KEY) || "Others"; }
+  function setLastCuisine(name) { localStorage.setItem(LAST_CUISINE_KEY, name); }
 
-  function renderMealNewInput(containerId) {
+  /* ---------- meal type (fixed, mandatory) ---------- */
+  const LAST_MEAL_KEY = "caloriesnap_last_meal";
+  function getLastMeal() { return localStorage.getItem(LAST_MEAL_KEY) || MEAL_TYPES[0]; }
+  function setLastMeal(name) { localStorage.setItem(LAST_MEAL_KEY, name); }
+
+  /* ---------- reusable pill picker (cuisine + meal type) ---------- */
+  function renderPills(containerId, opts) {
+    const chips = opts.items.map(c =>
+      `<button type="button" class="meal-chip${c === opts.selected ? " active" : ""}" data-val="${escAttr(c)}">${escAttr(c)}</button>`
+    ).join("");
+    const newBtn = opts.allowNew ? `<button type="button" class="meal-chip meal-chip-new" data-new="1">＋ New</button>` : "";
+    $(containerId).innerHTML = `<div class="meal-picker-label">${opts.label}</div><div class="meal-chips">${chips}${newBtn}</div>`;
+  }
+  function renderPillNewInput(containerId, label, placeholder) {
     $(containerId).innerHTML =
-      `<div class="meal-picker-label">New meal category</div>
+      `<div class="meal-picker-label">${label}</div>
        <div class="meal-new-row">
-         <input class="meal-new-input" type="text" maxlength="30" placeholder="e.g. Office Lunch" autocomplete="off">
+         <input class="meal-new-input" type="text" maxlength="30" placeholder="${placeholder}" autocomplete="off">
          <button type="button" class="meal-new-save">Add</button>
          <button type="button" class="meal-new-cancel">Cancel</button>
        </div>`;
     const inp = $(containerId).querySelector(".meal-new-input");
     if (inp) inp.focus();
   }
-
-  function setupMealPicker(containerId, getSelected, setSelected) {
+  // cfg: { label, getItems, getSelected, setSelected, allowNew?, onNew?, newLabel?, newPlaceholder? }
+  function setupPicker(containerId, cfg) {
     const el = $(containerId);
+    const rerender = () => renderPills(containerId, { label: cfg.label, items: cfg.getItems(), selected: cfg.getSelected(), allowNew: cfg.allowNew });
     const commitNew = () => {
       const name = el.querySelector(".meal-new-input").value.trim();
-      if (name) { addMealCategory(name); setSelected(name); setLastCategory(name); }
-      renderMealPicker(containerId, getSelected());
+      if (name && cfg.onNew && cfg.onNew(name)) cfg.setSelected(name);
+      rerender();
     };
     el.addEventListener("click", e => {
-      if (e.target.closest(".meal-chip-new")) return renderMealNewInput(containerId);
-      const chip = e.target.closest(".meal-chip[data-cat]");
-      if (chip) { setSelected(chip.dataset.cat); setLastCategory(chip.dataset.cat); return renderMealPicker(containerId, getSelected()); }
+      if (cfg.allowNew && e.target.closest(".meal-chip-new")) return renderPillNewInput(containerId, cfg.newLabel, cfg.newPlaceholder);
+      const chip = e.target.closest(".meal-chip[data-val]");
+      if (chip) { cfg.setSelected(chip.dataset.val); return rerender(); }
       if (e.target.closest(".meal-new-save")) return commitNew();
-      if (e.target.closest(".meal-new-cancel")) return renderMealPicker(containerId, getSelected());
+      if (e.target.closest(".meal-new-cancel")) return rerender();
     });
     el.addEventListener("keydown", e => {
       if (e.key === "Enter" && e.target.classList.contains("meal-new-input")) { e.preventDefault(); commitNew(); }
     });
+    return rerender;
   }
 
   /* ---------- food images ---------- */
@@ -117,8 +106,10 @@
   let activeCategory = "All";
   let searchTerm = "";
   let pickerMode = false;          // library doubles as manual dish picker for scans
-  let currentScan = null;          // { photo, dish, confidence, portionIdx }
-  let modalState = null;           // { dish, portionIdx, fromScan }
+  let currentScan = null;          // { photo, dish, confidence, portionIdx, cuisine, mealType, edited, override }
+  let modalState = null;           // { dish, portionIdx, cuisine, mealType }
+  let afCuisine = "Others";        // selected cuisine in the Add-Food form
+  let reviewIndex = null;          // history index open in the Meal Review sheet
 
   /* ---------- helpers ---------- */
   const round = n => Math.round(n);
@@ -206,7 +197,7 @@
 
   /* ---------- library ---------- */
   function renderTabs() {
-    const tabs = ["All", ...CATEGORIES];
+    const tabs = ["All", ...allCuisines()];
     $("category-tabs").innerHTML = tabs.map(c =>
       `<button class="tab${c === activeCategory ? " active" : ""}" role="tab" data-cat="${c}">${c}</button>`
     ).join("");
@@ -215,7 +206,7 @@
   }
 
   function stepCategory(dir) {
-    const tabs = ["All", ...CATEGORIES];
+    const tabs = ["All", ...allCuisines()];
     activeCategory = tabs[(tabs.indexOf(activeCategory) + dir + tabs.length) % tabs.length];
     renderTabs();
     renderGrid();
@@ -306,8 +297,10 @@
     $("modal-serving").textContent = dish.servingDesc ? "Typical serving: " + dish.servingDesc : "";
     $("modal-ingredients").innerHTML = ingredientChips(dish);
     $("modal-remove").hidden = !dish.custom;
-    modalState.mealCategory = getLastCategory();
-    renderMealPicker("modal-meal-picker", modalState.mealCategory);
+    modalState.cuisine = dish.category;
+    modalState.mealType = getLastMeal();
+    renderPills("modal-cuisine-picker", { label: "Cuisine", items: allCuisines(), selected: modalState.cuisine, allowNew: true });
+    renderPills("modal-meal-picker", { label: "Meal type", items: MEAL_TYPES, selected: modalState.mealType });
     renderPortionCards("modal-portions", 1);
     // reset collapsible to closed
     $("modal-details").hidden = true;
@@ -354,8 +347,8 @@
     saveHistoryEntry({
       dishId: modalState.dish.id,
       name: modalState.dish.name,
-      category: modalState.dish.category,
-      mealCategory: modalState.mealCategory || getLastCategory(),
+      category: modalState.cuisine || modalState.dish.category,
+      mealCategory: modalState.mealType || getLastMeal(),
       portionIdx: modalState.portionIdx,
       prepIdx: 0,
       calories: s.calories,
@@ -363,6 +356,7 @@
       photo: null, // library entry — thumbnail uses the dish photo
       time: Date.now(),
     });
+    setLastMeal(modalState.mealType || getLastMeal());
     closeModal();
     toast("Logged ✓");
   });
@@ -536,8 +530,11 @@
       $("result-ingredients").innerHTML = ingredientChips(dish);
       $("result-details").hidden = true;
       $("result-details-toggle").setAttribute("aria-expanded", "false");
-      if (!currentScan.mealCategory) currentScan.mealCategory = getLastCategory();
-      renderMealPicker("result-meal-picker", currentScan.mealCategory);
+      currentScan.edited = false; currentScan.override = null;
+      if (!currentScan.cuisine) currentScan.cuisine = dish.category || getLastCuisine();
+      if (!currentScan.mealType) currentScan.mealType = getLastMeal();
+      renderPills("result-cuisine-picker", { label: "Cuisine", items: allCuisines(), selected: currentScan.cuisine, allowNew: true });
+      renderPills("result-meal-picker", { label: "Meal type", items: MEAL_TYPES, selected: currentScan.mealType });
       updateResultNutrition();
     } else {
       // No AI match → prompt manual selection
@@ -560,28 +557,61 @@
     ).join("");
   }
 
+  // Clearing a manual edit when portion/prep changes (so the numbers recompute).
+  function clearOverride() {
+    if (currentScan && currentScan.edited) {
+      currentScan.edited = false;
+      currentScan.override = null;
+      toast("Recalculated from portion & prep");
+    }
+  }
+
   $("result-prep-chips").addEventListener("click", e => {
     const chip = e.target.closest(".prep-chip");
     if (!chip || !currentScan) return;
+    clearOverride();
     currentScan.prepIdx = +chip.dataset.idx;
     renderPrepChips();
     $("result-nutrition").hidden = false;
     updateResultNutrition();
   });
 
+  function resultNutrition() {
+    return currentScan.edited && currentScan.override
+      ? currentScan.override
+      : scaled(currentScan.dish, currentScan.portionIdx, currentScan.prepIdx || 0);
+  }
+
   function updateResultNutrition() {
     if (!currentScan || !currentScan.dish) return;
-    const s = scaled(currentScan.dish, currentScan.portionIdx, currentScan.prepIdx || 0);
-    $("result-calories").textContent = s.calories;
-    $("result-protein").textContent = s.protein + "g";
-    $("result-carbs").textContent = s.carbs + "g";
-    $("result-fat").textContent = s.fat + "g";
-    $("result-portion-desc").textContent = portionDesc(currentScan.portionIdx);
+    if (!currentScan.edited) {
+      const s = scaled(currentScan.dish, currentScan.portionIdx, currentScan.prepIdx || 0);
+      $("result-calories").value = s.calories;
+      $("result-protein").value = s.protein;
+      $("result-carbs").value = s.carbs;
+      $("result-fat").value = s.fat;
+    }
+    $("result-portion-desc").textContent = currentScan.edited
+      ? "✎ Edited values" : portionDesc(currentScan.portionIdx);
   }
+
+  // Tap-to-edit any number → per-log override (never changes the saved food).
+  $("result-nutrition").addEventListener("input", e => {
+    if (!currentScan || !e.target.matches(".cal-input, .macro-input")) return;
+    currentScan.edited = true;
+    currentScan.override = {
+      calories: Math.max(0, +$("result-calories").value || 0),
+      protein: Math.max(0, +$("result-protein").value || 0),
+      carbs: Math.max(0, +$("result-carbs").value || 0),
+      fat: Math.max(0, +$("result-fat").value || 0),
+    };
+    $("result-portion-desc").textContent = "✎ Edited values";
+  });
 
   $("result-portions").addEventListener("click", e => {
     const card = e.target.closest(".portion-card");
     if (!card || !currentScan) return;
+    clearOverride();
     currentScan.portionIdx = +card.dataset.idx;
     renderPortionCards("result-portions", currentScan.portionIdx);
     updateResultNutrition();
@@ -605,20 +635,24 @@
   $("btn-save").addEventListener("click", async () => {
     if (!currentScan || !currentScan.dish) return;
     const thumb = await downscale(currentScan.photo, 300);
-    const s = scaled(currentScan.dish, currentScan.portionIdx, currentScan.prepIdx || 0);
+    const s = resultNutrition();
+    const cuisine = currentScan.cuisine || currentScan.dish.category;
+    const mealType = currentScan.mealType || getLastMeal();
     saveHistoryEntry({
       dishId: currentScan.dish.id,
       name: currentScan.dish.name,
-      category: currentScan.dish.category,
-      mealCategory: currentScan.mealCategory || getLastCategory(),
+      category: cuisine,
+      mealCategory: mealType,
       portionIdx: currentScan.portionIdx,
       prepIdx: currentScan.prepIdx || 0,
+      edited: !!currentScan.edited,
       calories: s.calories,
       protein: s.protein, carbs: s.carbs, fat: s.fat,
       confidence: currentScan.confidence,
       photo: thumb,
       time: Date.now(),
     });
+    setLastMeal(mealType); setLastCuisine(cuisine);
     toast("Logged ✓");
     currentScan = null;
     showScanStage("scan-home");
@@ -804,11 +838,11 @@
         : (dish ? foodImg(dish, e.name) : `<img src="${PLACEHOLDER_IMG}" alt="">`);
       const conf = e.confidence != null ? ` · ${Math.round(e.confidence * 100)}% match` : "";
       const prep = e.prepIdx > 0 ? ` · ${PREP_METHODS[e.prepIdx].label}` : "";
-      return `<div class="history-item">
+      return `<div class="history-item" data-index="${i}" role="button" tabindex="0">
         <div class="history-thumb">${thumb}</div>
         <div class="history-info">
           <div class="history-name">${e.name}</div>
-          <div class="hist-mealcat">${e.mealCategory || "Uncategorized"}</div>
+          <div class="hist-tags"><span class="hist-mealcat">${e.mealCategory || "Uncategorized"}</span><span class="hist-cuisine">${e.category || "—"}</span></div>
           <div class="history-meta">${PORTIONS[e.portionIdx].key} portion${prep}${conf} · ${fmtTime(e.time)}</div>
         </div>
         <div class="history-cal">${e.calories} kcal</div>
@@ -818,13 +852,57 @@
   }
 
   $("history-list").addEventListener("click", e => {
-    const btn = e.target.closest(".history-delete");
-    if (!btn) return;
+    const del = e.target.closest(".history-delete");
+    if (del) {
+      const list = loadHistory();
+      list.splice(+del.dataset.index, 1);
+      persistHistory(list);
+      renderHistory();
+      renderDashboard();
+      return;
+    }
+    const item = e.target.closest(".history-item");
+    if (item) openReview(+item.dataset.index);
+  });
+
+  /* ---------- Meal Review drill-down sheet ---------- */
+  function openReview(index) {
+    const e = loadHistory()[index];
+    if (!e) return;
+    reviewIndex = index;
+    const dish = findFood(e.dishId);
+    $("review-image").innerHTML = e.photo
+      ? `<img src="${e.photo}" alt="${escAttr(e.name)}">`
+      : (dish ? foodImg(dish, e.name) : `<img src="${PLACEHOLDER_IMG}" alt="">`);
+    $("review-name").textContent = e.name;
+    $("review-cuisine").textContent = e.category || "—";
+    $("review-mealtype").textContent = e.mealCategory || "Uncategorized";
+    const prep = e.prepIdx > 0 && PREP_METHODS[e.prepIdx] ? PREP_METHODS[e.prepIdx].label : "As served";
+    $("review-context").textContent = `${PORTIONS[e.portionIdx] ? PORTIONS[e.portionIdx].name : "Medium"} portion · ${prep}${e.edited ? " · ✎ edited" : ""}`;
+    $("review-time").textContent = fmtTime(e.time);
+    $("review-calories").textContent = e.calories;
+    $("review-protein").textContent = (e.protein || 0) + "g";
+    $("review-carbs").textContent = (e.carbs || 0) + "g";
+    $("review-fat").textContent = (e.fat || 0) + "g";
+    $("review-backdrop").hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+  function closeReview() {
+    $("review-backdrop").hidden = true;
+    document.body.style.overflow = "";
+    reviewIndex = null;
+  }
+  $("review-close").addEventListener("click", closeReview);
+  $("review-backdrop").addEventListener("click", e => { if (e.target === $("review-backdrop")) closeReview(); });
+  $("review-delete").addEventListener("click", () => {
+    if (reviewIndex == null) return;
     const list = loadHistory();
-    list.splice(+btn.dataset.index, 1);
+    list.splice(reviewIndex, 1);
     persistHistory(list);
+    closeReview();
     renderHistory();
     renderDashboard();
+    toast("Entry deleted");
   });
 
   $("btn-clear-history").addEventListener("click", () => {
@@ -839,12 +917,10 @@
   /* ---------- add new food (grow the library from scans) ---------- */
   function openAddFood() {
     if (!currentScan) { toast("Scan a food photo first"); return; }
-    const sel = $("af-category");
-    if (!sel.options.length) {
-      sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
-    }
     $("addfood-photo").innerHTML = `<img src="${currentScan.photo}" alt="Your food photo">`;
     $("addfood-form").reset();
+    afCuisine = currentScan.cuisine || getLastCuisine();
+    renderPills("af-cuisine-pills", { label: "Cuisine *", items: allCuisines(), selected: afCuisine, allowNew: true });
     $("af-error").hidden = true;
     $("af-lookup-status").hidden = true;
     clearTimeout(lookupTimer);
@@ -934,7 +1010,7 @@
   $("addfood-form").addEventListener("submit", async e => {
     e.preventDefault();
     const name = $("af-name").value.trim();
-    const category = $("af-category").value;
+    const category = afCuisine;
     const calories = +$("af-calories").value;
     const err = $("af-error");
     if (!name || !category || !(calories > 0)) {
@@ -987,6 +1063,14 @@
 
   /* ---------- Stats tab (time views + analytics) ---------- */
   let statsRange = "today";
+  let statsMealFilter = "All";
+
+  function sumEntries(entries) {
+    return entries.reduce((t, e) => ({
+      calories: t.calories + (e.calories || 0), protein: t.protein + (e.protein || 0),
+      carbs: t.carbs + (e.carbs || 0), fat: t.fat + (e.fat || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  }
 
   function rangeBounds(key) {
     const startToday = startOfToday();
@@ -1009,21 +1093,27 @@
 
   function renderStats() {
     const b = rangeBounds(statsRange);
-    const t = rangeTotals(b.from, b.to);
+    const range = rangeTotals(b.from, b.to);
+    const mf = statsMealFilter;
+    const filterMeal = arr => mf === "All" ? arr : arr.filter(e => (e.mealCategory || "") === mf);
+
+    const rangeEntries = filterMeal(range.entries);
+    const t = sumEntries(rangeEntries);
     const goal = getGoal();
     const showAvg = statsRange === "week" || statsRange === "month";
     const avg = Math.round(t.calories / Math.max(1, b.days));
+    const mfLabel = mf === "All" ? "" : ` · ${mf}`;
     $("stats-summary").innerHTML =
-      `<div><span class="stats-sum-total">${t.calories}</span><span class="stats-sum-unit">kcal ${b.label}</span></div>
+      `<div><span class="stats-sum-total">${t.calories}</span><span class="stats-sum-unit">kcal ${b.label}${mfLabel}</span></div>
        ${showAvg
         ? `<div class="stats-sum-sub">Daily average: <strong>${avg}</strong> kcal · goal ${goal}</div>`
         : `<div class="stats-sum-sub">Daily goal ${goal} kcal</div>`}
        <div class="stats-sum-macros"><span class="p">P ${Math.round(t.protein)}g</span><span class="c">C ${Math.round(t.carbs)}g</span><span class="f">F ${Math.round(t.fat)}g</span></div>`;
 
-    const history = loadHistory();
+    const history = filterMeal(loadHistory());
     $("chart-over-time").innerHTML = Charts.caloriesOverTime(history, goal);
     $("chart-weekday").innerHTML = Charts.weekdayAverages(history);
-    $("chart-category").innerHTML = Charts.categoryBreakdown(t.entries);
+    $("chart-category").innerHTML = Charts.breakdownBy(rangeEntries, e => e.category || "Others");
     $("stats-insight").innerHTML = Charts.insights(history);
   }
 
@@ -1035,33 +1125,42 @@
     renderStats();
   });
 
-  /* ---------- manage meal categories sheet ---------- */
-  function renderMealManage() {
-    const rows = getMealCategories().map(c =>
-      `<div class="mealcat-row" data-cat="${escAttr(c)}">
-         <input type="text" value="${escAttr(c)}" maxlength="30" aria-label="Category name">
-         <button type="button" class="mealcat-del" aria-label="Delete category">🗑</button>
-       </div>`
-    ).join("");
-    $("mealcat-list").innerHTML = rows || `<p class="chart-empty">No categories yet — add one below.</p>`;
+  $("stats-mealfilter").addEventListener("click", e => {
+    const pill = e.target.closest(".range-pill");
+    if (!pill) return;
+    statsMealFilter = pill.dataset.meal;
+    $("stats-mealfilter").querySelectorAll(".range-pill").forEach(p => p.classList.toggle("active", p === pill));
+    renderStats();
+  });
+
+  /* ---------- manage cuisines sheet ---------- */
+  function renderCuisineManage() {
+    $("mealcat-list").innerHTML = allCuisines().map(c => {
+      const core = isCoreCuisine(c);
+      return `<div class="mealcat-row" data-cat="${escAttr(c)}">
+         <input type="text" value="${escAttr(c)}" maxlength="30" aria-label="Cuisine name"${core ? " readonly" : ""}>
+         ${core ? `<span class="mealcat-core">core</span>` : `<button type="button" class="mealcat-del" aria-label="Delete cuisine">🗑</button>`}
+       </div>`;
+    }).join("");
   }
-  function openMealManage() {
-    renderMealManage();
+  function refreshCuisineUI() { renderCuisineManage(); renderTabs(); renderGrid(); }
+  function openCuisineManage() {
+    renderCuisineManage();
     $("mealcat-backdrop").hidden = false;
     document.body.style.overflow = "hidden";
   }
-  function closeMealManage() {
+  function closeCuisineManage() {
     $("mealcat-backdrop").hidden = true;
     document.body.style.overflow = "";
   }
 
-  $("btn-manage-cats").addEventListener("click", openMealManage);
-  $("mealcat-close").addEventListener("click", closeMealManage);
-  $("mealcat-backdrop").addEventListener("click", e => { if (e.target === $("mealcat-backdrop")) closeMealManage(); });
+  $("btn-manage-cats").addEventListener("click", openCuisineManage);
+  $("mealcat-close").addEventListener("click", closeCuisineManage);
+  $("mealcat-backdrop").addEventListener("click", e => { if (e.target === $("mealcat-backdrop")) closeCuisineManage(); });
   $("mealcat-add-btn").addEventListener("click", () => {
     const inp = $("mealcat-add-input");
-    if (addMealCategory(inp.value)) { inp.value = ""; renderMealManage(); }
-    else toast("Enter a new, unique name");
+    if (addCuisine(inp.value)) { inp.value = ""; refreshCuisineUI(); }
+    else toast("Enter a new, unique cuisine");
   });
   $("mealcat-add-input").addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); $("mealcat-add-btn").click(); }
@@ -1070,28 +1169,29 @@
     const del = e.target.closest(".mealcat-del");
     if (!del) return;
     const cat = del.closest(".mealcat-row").dataset.cat;
-    if (getMealCategories().length <= 1) { toast("Keep at least one category"); return; }
-    if (confirm(`Delete "${cat}"? Past logs keep their label.`)) { deleteMealCategory(cat); renderMealManage(); }
+    if (confirm(`Delete cuisine "${cat}"? Past logs keep their label.`)) { deleteCuisine(cat); refreshCuisineUI(); }
   });
   $("mealcat-list").addEventListener("change", e => {
     const inp = e.target.closest("input");
-    if (!inp) return;
+    if (!inp || inp.readOnly) return;
     const row = inp.closest(".mealcat-row");
     const oldName = row.dataset.cat;
     const newName = inp.value.trim();
     if (!newName || newName === oldName) { inp.value = oldName; return; }
-    if (getMealCategories().some(c => c.toLowerCase() === newName.toLowerCase() && c !== oldName)) {
-      toast("That name already exists"); inp.value = oldName; return;
+    if (allCuisines().some(c => c.toLowerCase() === newName.toLowerCase() && c !== oldName)) {
+      toast("That cuisine already exists"); inp.value = oldName; return;
     }
-    renameMealCategory(oldName, newName);
+    renameCuisine(oldName, newName);
     row.dataset.cat = newName;
+    renderTabs(); renderGrid();
   });
 
   /* ---------- logo → back to home ---------- */
   $("logo-home").addEventListener("click", () => {
     closeModal();
     closeAddFood();
-    closeMealManage();
+    closeCuisineManage();
+    closeReview();
     closeCamera();
     exitPickerMode();
     currentScan = null;
@@ -1100,12 +1200,42 @@
   });
 
   /* ---------- init ---------- */
-  setupMealPicker("result-meal-picker",
-    () => currentScan && currentScan.mealCategory,
-    v => { if (currentScan) currentScan.mealCategory = v; });
-  setupMealPicker("modal-meal-picker",
-    () => modalState && modalState.mealCategory,
-    v => { if (modalState) modalState.mealCategory = v; });
+  const cuisineNew = name => {
+    const ok = addCuisine(name);
+    if (ok) { renderTabs(); renderGrid(); }
+    return ok;
+  };
+  // scan-result pickers
+  setupPicker("result-cuisine-picker", {
+    label: "Cuisine", allowNew: true, newLabel: "New cuisine", newPlaceholder: "e.g. Thai",
+    getItems: allCuisines, onNew: cuisineNew,
+    getSelected: () => currentScan && currentScan.cuisine,
+    setSelected: v => { if (currentScan) currentScan.cuisine = v; },
+  });
+  setupPicker("result-meal-picker", {
+    label: "Meal type", getItems: () => MEAL_TYPES,
+    getSelected: () => currentScan && currentScan.mealType,
+    setSelected: v => { if (currentScan) currentScan.mealType = v; },
+  });
+  // library-modal pickers
+  setupPicker("modal-cuisine-picker", {
+    label: "Cuisine", allowNew: true, newLabel: "New cuisine", newPlaceholder: "e.g. Thai",
+    getItems: allCuisines, onNew: cuisineNew,
+    getSelected: () => modalState && modalState.cuisine,
+    setSelected: v => { if (modalState) modalState.cuisine = v; },
+  });
+  setupPicker("modal-meal-picker", {
+    label: "Meal type", getItems: () => MEAL_TYPES,
+    getSelected: () => modalState && modalState.mealType,
+    setSelected: v => { if (modalState) modalState.mealType = v; },
+  });
+  // add-food cuisine picker
+  setupPicker("af-cuisine-pills", {
+    label: "Cuisine *", allowNew: true, newLabel: "New cuisine", newPlaceholder: "e.g. Thai",
+    getItems: allCuisines, onNew: cuisineNew,
+    getSelected: () => afCuisine,
+    setSelected: v => { afCuisine = v; },
+  });
 
   renderTabs();
   renderGrid();

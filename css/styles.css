@@ -576,3 +576,39 @@ body {
 .chart-goal { stroke: var(--carbs); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .chart-label { fill: var(--ink-faint); font-size: 9px; font-weight: 600; }
 .chart-val { fill: var(--ink-soft); font-size: 8.5px; font-weight: 700; }
+
+/* ---- Round 6: editable numbers ---- */
+.cal-input, .macro-input { -moz-appearance: textfield; appearance: textfield; }
+.cal-input::-webkit-outer-spin-button, .cal-input::-webkit-inner-spin-button,
+.macro-input::-webkit-outer-spin-button, .macro-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cal-input {
+  border: none; background: transparent; outline: none; font-family: inherit;
+  text-align: center; width: 3.4em; border-bottom: 2px dashed var(--line);
+  padding: 0 2px;
+}
+.cal-input:focus { border-bottom-color: var(--green); }
+.macro-input {
+  border: none; background: transparent; outline: none; font: inherit; color: inherit;
+  width: 2.6em; text-align: right; border-bottom: 1px dashed var(--line); padding: 0;
+}
+.macro-input:focus { border-bottom-color: var(--green); }
+.edit-hint { text-align: center; font-size: .74rem; color: var(--ink-faint); margin: 2px 0 8px; }
+
+/* ---- Round 6: history tags + tappable rows ---- */
+.history-item { cursor: pointer; }
+.hist-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.hist-tags .hist-mealcat { margin-top: 0; }
+.hist-cuisine {
+  display: inline-block; background: var(--bg); color: var(--ink-soft);
+  border: 1px solid var(--line); font-size: .7rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px;
+}
+
+/* ---- Round 6: manage cuisines + stats filter + review ---- */
+.mealcat-core { font-size: .7rem; font-weight: 700; color: var(--ink-faint); padding: 0 12px; }
+.stats-mealfilter-label {
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink-faint); font-weight: 800; margin: 2px 0 6px;
+}
+.review-tags { display: flex; gap: 8px; margin: 2px 0 4px; flex-wrap: wrap; }
+.review-tags .hist-mealcat { margin-top: 0; }

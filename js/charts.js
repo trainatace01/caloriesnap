@@ -107,11 +107,11 @@ const Charts = (() => {
     return vbars(bars, { aria: "Average calories by day of week" });
   }
 
-  // Horizontal magnitude bars of calories per user meal category, for the range.
-  function categoryBreakdown(entries) {
+  // Horizontal magnitude bars of calories grouped by keyFn(entry), for the range.
+  function breakdownBy(entries, keyFn) {
     if (!entries || !entries.length) return emptyMsg("No meals logged in this range.");
     const by = {};
-    entries.forEach(e => { const c = e.mealCategory || "Uncategorized"; by[c] = (by[c] || 0) + (e.calories || 0); });
+    entries.forEach(e => { const c = keyFn(e) || "Other"; by[c] = (by[c] || 0) + (e.calories || 0); });
     const rows = Object.entries(by).sort((a, b) => b[1] - a[1]);
     const max = Math.max(1, ...rows.map(r => r[1]));
     return rows.map(([name, val]) =>
@@ -151,5 +151,5 @@ const Charts = (() => {
     return parts.join(" ") || "Keep logging to reveal your trends.";
   }
 
-  return { caloriesOverTime, weekdayAverages, categoryBreakdown, insights };
+  return { caloriesOverTime, weekdayAverages, breakdownBy, insights };
 })();

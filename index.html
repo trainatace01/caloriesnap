@@ -84,9 +84,10 @@
 
         <div id="result-nutrition" hidden>
           <div class="calorie-display">
-            <span id="result-calories" class="calorie-number">0</span>
+            <input id="result-calories" class="calorie-number cal-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Calories">
             <span class="calorie-unit">Calories</span>
           </div>
+          <div class="edit-hint">✎ Tap any number to correct it for this meal</div>
 
           <div class="portion-block">
             <div class="portion-title">Portion size</div>
@@ -95,9 +96,9 @@
           </div>
 
           <div class="macro-grid">
-            <div class="macro protein"><span class="macro-value" id="result-protein">0g</span><span class="macro-label">Protein</span></div>
-            <div class="macro carbs"><span class="macro-value" id="result-carbs">0g</span><span class="macro-label">Carbs</span></div>
-            <div class="macro fat"><span class="macro-value" id="result-fat">0g</span><span class="macro-label">Fat</span></div>
+            <div class="macro protein"><span class="macro-value"><input id="result-protein" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Protein grams">g</span><span class="macro-label">Protein</span></div>
+            <div class="macro carbs"><span class="macro-value"><input id="result-carbs" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Carbs grams">g</span><span class="macro-label">Carbs</span></div>
+            <div class="macro fat"><span class="macro-value"><input id="result-fat" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Fat grams">g</span><span class="macro-label">Fat</span></div>
           </div>
 
           <button id="result-details-toggle" class="details-toggle" aria-expanded="false">
@@ -107,6 +108,7 @@
             <div id="result-ingredients" class="chip-list"></div>
           </div>
 
+          <div id="result-cuisine-picker" class="meal-picker"></div>
           <div id="result-meal-picker" class="meal-picker"></div>
 
           <div class="result-actions">
@@ -167,6 +169,14 @@
       <button class="range-pill" data-range="week">This Week</button>
       <button class="range-pill" data-range="month">This Month</button>
     </div>
+    <div class="stats-mealfilter-label">Filter by meal type</div>
+    <div class="stats-range" id="stats-mealfilter" role="tablist">
+      <button class="range-pill active" data-meal="All">All</button>
+      <button class="range-pill" data-meal="Breakfast">Breakfast</button>
+      <button class="range-pill" data-meal="Lunch">Lunch</button>
+      <button class="range-pill" data-meal="Dinner">Dinner</button>
+      <button class="range-pill" data-meal="Snack">Snack</button>
+    </div>
     <div id="stats-summary" class="stats-summary card"></div>
 
     <div class="stats-section">
@@ -178,12 +188,12 @@
       <div id="chart-weekday" class="chart-box"></div>
     </div>
     <div class="stats-section">
-      <h3 class="stats-h">By meal category</h3>
+      <h3 class="stats-h">By cuisine</h3>
       <div id="chart-category" class="chart-box"></div>
     </div>
 
     <div id="stats-insight" class="stats-insight"></div>
-    <button id="btn-manage-cats" class="btn btn-secondary btn-full">⚙ Manage meal categories</button>
+    <button id="btn-manage-cats" class="btn btn-secondary btn-full">⚙ Manage cuisines</button>
   </section>
 
 </main>
@@ -221,6 +231,7 @@
         <div id="modal-ingredients" class="chip-list"></div>
       </div>
 
+      <div id="modal-cuisine-picker" class="meal-picker"></div>
       <div id="modal-meal-picker" class="meal-picker"></div>
       <button id="modal-add" class="btn btn-primary">＋ Log Meal</button>
       <button id="modal-remove" class="btn-link danger" hidden>Remove from library</button>
@@ -243,10 +254,7 @@
         </label>
         <button type="button" id="af-lookup" class="lookup-btn" title="Look up nutrition online">🔍 Look up nutrition</button>
         <p id="af-lookup-status" class="lookup-status" hidden></p>
-        <label class="form-field">
-          <span>Category *</span>
-          <select id="af-category" required></select>
-        </label>
+        <div id="af-cuisine-pills" class="meal-picker"></div>
         <label class="form-field">
           <span>Calories per serving *</span>
           <input type="number" id="af-calories" required min="1" max="5000" inputmode="numeric" placeholder="e.g. 290">
@@ -268,16 +276,43 @@
   </div>
 </div>
 
-<!-- ============ MANAGE MEAL CATEGORIES SHEET ============ -->
+<!-- ============ MEAL REVIEW SHEET (history drill-down) ============ -->
+<div id="review-backdrop" class="modal-backdrop" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true">
+    <button id="review-close" class="modal-close" aria-label="Close">✕</button>
+    <div id="review-image" class="modal-image"></div>
+    <div class="modal-body">
+      <h2 id="review-name">—</h2>
+      <div class="review-tags">
+        <span class="hist-mealcat" id="review-mealtype">—</span>
+        <span class="hist-cuisine" id="review-cuisine">—</span>
+      </div>
+      <div class="calorie-display">
+        <span id="review-calories" class="calorie-number">0</span>
+        <span class="calorie-unit">Calories</span>
+      </div>
+      <div class="macro-grid">
+        <div class="macro protein"><span class="macro-value" id="review-protein">0g</span><span class="macro-label">Protein</span></div>
+        <div class="macro carbs"><span class="macro-value" id="review-carbs">0g</span><span class="macro-label">Carbs</span></div>
+        <div class="macro fat"><span class="macro-value" id="review-fat">0g</span><span class="macro-label">Fat</span></div>
+      </div>
+      <p id="review-context" class="serving-desc"></p>
+      <p id="review-time" class="serving-desc"></p>
+      <button id="review-delete" class="btn-link danger">Delete this entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MANAGE CUISINES SHEET ============ -->
 <div id="mealcat-backdrop" class="modal-backdrop" hidden>
   <div class="modal-sheet" role="dialog" aria-modal="true">
     <button id="mealcat-close" class="modal-close" aria-label="Close">✕</button>
     <div class="modal-body">
-      <h2>Meal Categories</h2>
-      <p class="form-hint">Organize your logged meals your way (e.g. Snacks, Office Lunches). Separate from the cuisine tabs in Browse Menu.</p>
+      <h2>Cuisines</h2>
+      <p class="form-hint">The core cuisines are standard. Add your own (e.g. Thai, Korean, Vietnamese) — they appear as pills when logging and as tabs in Browse Menu.</p>
       <div id="mealcat-list" class="mealcat-list"></div>
       <div class="meal-new-row">
-        <input id="mealcat-add-input" type="text" maxlength="30" placeholder="Add a category…" autocomplete="off">
+        <input id="mealcat-add-input" type="text" maxlength="30" placeholder="Add a cuisine…" autocomplete="off">
         <button type="button" id="mealcat-add-btn" class="meal-new-save">＋ Add</button>
       </div>
     </div>

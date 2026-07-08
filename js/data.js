@@ -7,6 +7,9 @@
 
 const CATEGORIES = ["Chinese", "Malay", "Indian", "American", "Italian", "Mexican", "Others", "Healthy"];
 
+// Fixed, mandatory meal-time tags assigned to every logged entry.
+const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
 const FOODS = [
   /* ================= CHINESE ================= */
   { id: "fried-rice", name: "Fried Rice", category: "Chinese", calories: 520, protein: 14, carbs: 68, fat: 20,
