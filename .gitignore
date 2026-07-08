@@ -1,0 +1,9 @@
+# Claude Code local files
+.claude/
+tools/
+test-*.jpg
+test-*.png
+
+# OS junk
+Thumbs.db
+.DS_Store

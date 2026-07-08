@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#16a34a">
+<title>CalorieSnap — Snap. Identify. Track.</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CalorieSnap">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <button id="logo-home" class="logo" aria-label="Back to home">📸 CalorieSnap</button>
+    <span class="tagline">Snap · Identify · Track</span>
+  </div>
+</header>
+
+<main class="app-main">
+
+  <!-- ============ SCAN VIEW ============ -->
+  <section id="view-scan" class="view active">
+
+    <div id="scan-home" class="scan-stage">
+      <div id="dash-scan" class="dash"></div>
+      <div class="scan-hero">
+        <h1>What are you eating?</h1>
+        <p>Take a photo of your food and CalorieSnap will identify the dish and estimate its calories instantly.</p>
+      </div>
+      <button id="btn-scan" class="btn btn-primary btn-big">📷 Scan Food</button>
+      <button id="btn-barcode" class="btn btn-secondary btn-big-secondary">▦ Scan Barcode</button>
+      <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+      <input type="file" id="barcode-input" accept="image/*" capture="environment" hidden>
+      <p class="scan-hint">Photo scan for dishes · barcode scan for packaged foods with a label.</p>
+      <div id="model-status" class="model-status"></div>
+    </div>
+
+    <div id="scan-analyzing" class="scan-stage" hidden>
+      <div class="photo-frame"><img id="analyzing-photo" alt="Your food photo"></div>
+      <div class="analyzing-box">
+        <div class="spinner"></div>
+        <p id="analyzing-text">Analyzing your food…</p>
+      </div>
+    </div>
+
+    <div id="scan-result" class="scan-stage" hidden>
+      <div class="photo-frame"><img id="result-photo" alt="Your food photo"></div>
+
+      <div class="result-card card">
+        <div id="result-detected">
+          <div class="detected-row">
+            <div>
+              <div class="detected-label">Detected</div>
+              <div id="result-name" class="detected-name">—</div>
+              <div id="result-category" class="detected-category">—</div>
+            </div>
+            <div id="result-confidence" class="confidence-badge">—%</div>
+          </div>
+          <button id="btn-wrong" class="btn btn-secondary btn-full">✕ Wrong food? Choose manually</button>
+        </div>
+
+        <div id="result-unknown" hidden>
+          <div class="unknown-box">
+            <div class="unknown-icon">🤔</div>
+            <p id="unknown-message">Hmm, I couldn't confidently identify this dish.</p>
+            <button id="btn-pick-manual" class="btn btn-secondary">Pick the closest dish</button>
+            <button id="btn-add-new" class="btn btn-primary">＋ Add as new food</button>
+          </div>
+        </div>
+
+        <div id="result-prep" class="prep-block" hidden>
+          <div class="prep-title">How was this prepared?</div>
+          <div id="result-prep-chips" class="prep-chips"></div>
+          <p class="prep-hint">Cooking method changes the calories — e.g. deep-fried adds oil.</p>
+        </div>
+
+        <div id="result-nutrition" hidden>
+          <div class="calorie-display">
+            <span id="result-calories" class="calorie-number">0</span>
+            <span class="calorie-unit">Calories</span>
+          </div>
+
+          <div class="portion-block">
+            <div class="portion-title">Portion size</div>
+            <div id="result-portions" class="portion-cards"></div>
+            <div id="result-portion-desc" class="portion-desc">Medium portion (×1.0)</div>
+          </div>
+
+          <div class="macro-grid">
+            <div class="macro protein"><span class="macro-value" id="result-protein">0g</span><span class="macro-label">Protein</span></div>
+            <div class="macro carbs"><span class="macro-value" id="result-carbs">0g</span><span class="macro-label">Carbs</span></div>
+            <div class="macro fat"><span class="macro-value" id="result-fat">0g</span><span class="macro-label">Fat</span></div>
+          </div>
+
+          <button id="result-details-toggle" class="details-toggle" aria-expanded="false">
+            Ingredients <span class="chevron">▾</span>
+          </button>
+          <div id="result-details" class="details-panel" hidden>
+            <div id="result-ingredients" class="chip-list"></div>
+          </div>
+
+          <div class="result-actions">
+            <button id="btn-save" class="btn btn-primary">✓ Save to History</button>
+            <button id="btn-rescan" class="btn btn-secondary">↺ Scan Again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ LIBRARY VIEW ============ -->
+  <section id="view-library" class="view">
+    <div class="library-controls">
+      <div class="search-wrap">
+        <input type="search" id="search-input" class="search-input" placeholder="🔍 Search dishes…" autocomplete="off">
+      </div>
+      <div class="tabs-row">
+        <button id="tab-prev" class="tab-arrow" aria-label="Previous category">‹</button>
+        <div id="category-tabs" class="tabs" role="tablist"></div>
+        <button id="tab-next" class="tab-arrow" aria-label="Next category">›</button>
+      </div>
+    </div>
+    <div id="picker-banner" class="picker-banner" hidden>
+      <span>Pick the dish that best matches your photo</span>
+      <span class="picker-actions">
+        <button id="btn-add-new-2" class="btn-link">＋ Add as new food</button>
+        <button id="btn-cancel-pick" class="btn-link">Cancel</button>
+      </span>
+    </div>
+    <div id="food-grid" class="food-grid"></div>
+    <div id="no-results" class="empty-state" hidden>
+      <div class="empty-icon">🍳</div>
+      <p>No dishes found. Try a different search.</p>
+    </div>
+  </section>
+
+  <!-- ============ HISTORY VIEW ============ -->
+  <section id="view-history" class="view">
+    <div id="dash-history" class="dash"></div>
+    <div class="history-header">
+      <h2>Recent scans</h2>
+      <button id="btn-clear-history" class="btn-link danger">Clear all</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+    <div id="history-empty" class="empty-state">
+      <div class="empty-icon">📋</div>
+      <p>No history yet. Scan a food or add one from the library!</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ FOOD DETAIL MODAL (bottom sheet) ============ -->
+<div id="modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true">
+    <button id="modal-close" class="modal-close" aria-label="Close">✕</button>
+    <div id="modal-image" class="modal-image"></div>
+    <div class="modal-body">
+      <h2 id="modal-name">—</h2>
+      <div id="modal-category" class="detected-category">—</div>
+      <div class="calorie-display">
+        <span id="modal-calories" class="calorie-number">0</span>
+        <span class="calorie-unit">Calories</span>
+      </div>
+
+      <div class="portion-block">
+        <div class="portion-title">Portion size</div>
+        <div id="modal-portions" class="portion-cards"></div>
+        <div id="modal-portion-desc" class="portion-desc">Medium portion (×1.0)</div>
+      </div>
+
+      <button id="modal-details-toggle" class="details-toggle" aria-expanded="false">
+        More Details <span class="chevron">▾</span>
+      </button>
+      <div id="modal-details" class="details-panel" hidden>
+        <div class="macro-grid">
+          <div class="macro protein"><span class="macro-value" id="modal-protein">0g</span><span class="macro-label">Protein</span></div>
+          <div class="macro carbs"><span class="macro-value" id="modal-carbs">0g</span><span class="macro-label">Carbs</span></div>
+          <div class="macro fat"><span class="macro-value" id="modal-fat">0g</span><span class="macro-label">Fat</span></div>
+        </div>
+        <p id="modal-serving" class="serving-desc"></p>
+        <h3 class="ingredients-title">Ingredients</h3>
+        <div id="modal-ingredients" class="chip-list"></div>
+      </div>
+
+      <button id="modal-add" class="btn btn-primary">＋ Add to History</button>
+      <button id="modal-remove" class="btn-link danger" hidden>Remove from library</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADD NEW FOOD SHEET ============ -->
+<div id="addfood-backdrop" class="modal-backdrop" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true">
+    <button id="addfood-close" class="modal-close" aria-label="Close">✕</button>
+    <div class="modal-body">
+      <h2>Add New Food</h2>
+      <p class="form-hint">Save this dish to the library — it'll appear in its category for everyone using this app.</p>
+      <div id="addfood-photo" class="addfood-photo"></div>
+      <form id="addfood-form" novalidate>
+        <label class="form-field">
+          <span>Food name *</span>
+          <input type="text" id="af-name" required maxlength="60" placeholder="e.g. Kaya Toast" autocomplete="off">
+        </label>
+        <button type="button" id="af-lookup" class="lookup-btn" title="Look up nutrition online">🔍 Look up nutrition</button>
+        <p id="af-lookup-status" class="lookup-status" hidden></p>
+        <label class="form-field">
+          <span>Category *</span>
+          <select id="af-category" required></select>
+        </label>
+        <label class="form-field">
+          <span>Calories per serving *</span>
+          <input type="number" id="af-calories" required min="1" max="5000" inputmode="numeric" placeholder="e.g. 290">
+        </label>
+        <div class="form-row">
+          <label class="form-field"><span>Protein (g)</span><input type="number" id="af-protein" min="0" max="500" inputmode="numeric" placeholder="—"></label>
+          <label class="form-field"><span>Carbs (g)</span><input type="number" id="af-carbs" min="0" max="500" inputmode="numeric" placeholder="—"></label>
+          <label class="form-field"><span>Fat (g)</span><input type="number" id="af-fat" min="0" max="500" inputmode="numeric" placeholder="—"></label>
+        </div>
+        <label class="form-field">
+          <span>Ingredients (optional, comma-separated)</span>
+          <input type="text" id="af-ingredients" placeholder="e.g. Bread, kaya jam, butter" autocomplete="off">
+        </label>
+        <p id="af-error" class="form-error" hidden></p>
+        <button type="submit" class="btn btn-primary">✓ Save to Library</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LIVE CAMERA OVERLAY ============ -->
+<div id="camera-overlay" class="camera-overlay" hidden>
+  <div class="camera-top">
+    <span id="camera-title">Point at your food</span>
+    <button id="camera-close" class="camera-close-btn" aria-label="Close camera">✕</button>
+  </div>
+  <video id="camera-video" playsinline autoplay muted></video>
+  <div class="camera-controls">
+    <button id="camera-gallery" class="camera-alt">🖼 Gallery</button>
+    <button id="camera-capture" class="camera-shutter" aria-label="Take photo"></button>
+    <span class="camera-alt" aria-hidden="true"></span>
+  </div>
+</div>
+
+<!-- ============ BOTTOM NAV ============ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-view="scan"><span class="nav-icon">📷</span><span>Scan</span></button>
+  <button class="nav-btn" data-view="library"><span class="nav-icon">📖</span><span>Browse Menu</span></button>
+  <button class="nav-btn" data-view="history"><span class="nav-icon">🕘</span><span>History</span></button>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/data.js"></script>
+<script src="js/classifier.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/barcode.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // Installable app support: register the service worker (HTTPS/localhost only).
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(err =>
+        console.warn("Service worker registration failed:", err.message));
+    });
+  }
+</script>
+</body>
+</html>
