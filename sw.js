@@ -5,7 +5,7 @@
    Bump CACHE_VERSION whenever app files change to roll out updates.
 */
 
-const CACHE_VERSION = "caloriesnap-v3";
+const CACHE_VERSION = "caloriesnap-v4";
 const RUNTIME_CACHE = "caloriesnap-runtime-v1";
 
 const FOOD_IMAGES = [

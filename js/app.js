@@ -19,6 +19,33 @@
   function allFoods() { return FOODS.concat(customFoods); }
   function findFood(id) { return allFoods().find(f => f.id === id); }
 
+  /* ---------- per-food value corrections (persist to the food) ----------
+     Custom foods are edited in place; built-in dishes get a stored override
+     keyed by id (base / ×1.0 values), applied via effectiveDish(). */
+  const FOOD_OVERRIDE_KEY = "caloriesnap_food_overrides";
+  let foodOverrides = (() => {
+    try { return JSON.parse(localStorage.getItem(FOOD_OVERRIDE_KEY)) || {}; }
+    catch { return {}; }
+  })();
+  function persistFoodOverrides() {
+    try { localStorage.setItem(FOOD_OVERRIDE_KEY, JSON.stringify(foodOverrides)); } catch { /* quota */ }
+  }
+  function effectiveDish(dish) {
+    const o = dish && !dish.custom && foodOverrides[dish.id];
+    return o ? { ...dish, calories: o.calories, protein: o.protein, carbs: o.carbs, fat: o.fat } : dish;
+  }
+  // base = { calories, protein, carbs, fat } at ×1.0 (medium, as-served)
+  function setFoodValues(dish, base) {
+    if (dish.custom) {
+      dish.calories = base.calories; dish.protein = base.protein;
+      dish.carbs = base.carbs; dish.fat = base.fat;
+      persistCustomFoods();
+    } else {
+      foodOverrides[dish.id] = base;
+      persistFoodOverrides();
+    }
+  }
+
   const escAttr = s => String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
   /* ---------- cuisine tags (core + user-added, extendable) ---------- */
@@ -224,15 +251,16 @@
 
   function renderGrid() {
     const foods = filteredFoods();
-    $("food-grid").innerHTML = foods.map(f =>
-      `<button class="food-card" data-id="${f.id}" aria-label="${f.name}, ${f.calories} calories">
+    $("food-grid").innerHTML = foods.map(f => {
+      const cal = effectiveDish(f).calories;
+      return `<button class="food-card" data-id="${f.id}" aria-label="${f.name}, ${cal} calories">
         <div class="food-card-img">${foodImg(f)}</div>
         <div class="food-card-body">
           <div class="food-card-name">${f.name}</div>
-          <div class="food-card-cal">${f.calories} kcal</div>
+          <div class="food-card-cal">${cal} kcal</div>
         </div>
-      </button>`
-    ).join("");
+      </button>`;
+    }).join("");
     $("no-results").hidden = foods.length > 0;
   }
 
@@ -318,13 +346,30 @@
 
   function updateModalNutrition() {
     if (!modalState) return;
-    const s = scaled(modalState.dish, modalState.portionIdx);
-    $("modal-calories").textContent = s.calories;
-    $("modal-protein").textContent = s.protein + "g";
-    $("modal-carbs").textContent = s.carbs + "g";
-    $("modal-fat").textContent = s.fat + "g";
+    const s = scaled(effectiveDish(modalState.dish), modalState.portionIdx);
+    $("modal-calories").value = s.calories;
+    $("modal-protein").value = s.protein;
+    $("modal-carbs").value = s.carbs;
+    $("modal-fat").value = s.fat;
     $("modal-portion-desc").textContent = portionDesc(modalState.portionIdx);
   }
+
+  // Tap-to-edit in the detail modal → save the correction to the food itself.
+  // Inputs show values at the current portion; divide out the multiplier to
+  // store the standard (×1.0) base.
+  function onModalEdit() {
+    if (!modalState) return;
+    const m = PORTIONS[modalState.portionIdx].mult || 1;
+    setFoodValues(modalState.dish, {
+      calories: Math.max(0, Math.round((+$("modal-calories").value || 0) / m)),
+      protein: Math.max(0, Math.round((+$("modal-protein").value || 0) / m)),
+      carbs: Math.max(0, Math.round((+$("modal-carbs").value || 0) / m)),
+      fat: Math.max(0, Math.round((+$("modal-fat").value || 0) / m)),
+    });
+    renderGrid();
+  }
+  ["modal-calories", "modal-protein", "modal-carbs", "modal-fat"].forEach(id =>
+    $(id).addEventListener("input", onModalEdit));
 
   $("modal-portions").addEventListener("click", e => {
     const card = e.target.closest(".portion-card");
@@ -343,7 +388,7 @@
 
   $("modal-add").addEventListener("click", () => {
     if (!modalState) return;
-    const s = scaled(modalState.dish, modalState.portionIdx);
+    const s = scaled(effectiveDish(modalState.dish), modalState.portionIdx);
     saveHistoryEntry({
       dishId: modalState.dish.id,
       name: modalState.dish.name,
@@ -880,10 +925,10 @@
     const prep = e.prepIdx > 0 && PREP_METHODS[e.prepIdx] ? PREP_METHODS[e.prepIdx].label : "As served";
     $("review-context").textContent = `${PORTIONS[e.portionIdx] ? PORTIONS[e.portionIdx].name : "Medium"} portion · ${prep}${e.edited ? " · ✎ edited" : ""}`;
     $("review-time").textContent = fmtTime(e.time);
-    $("review-calories").textContent = e.calories;
-    $("review-protein").textContent = (e.protein || 0) + "g";
-    $("review-carbs").textContent = (e.carbs || 0) + "g";
-    $("review-fat").textContent = (e.fat || 0) + "g";
+    $("review-calories").value = e.calories;
+    $("review-protein").value = e.protein || 0;
+    $("review-carbs").value = e.carbs || 0;
+    $("review-fat").value = e.fat || 0;
     $("review-backdrop").hidden = false;
     document.body.style.overflow = "hidden";
   }
@@ -891,7 +936,25 @@
     $("review-backdrop").hidden = true;
     document.body.style.overflow = "";
     reviewIndex = null;
+    renderHistory();
   }
+
+  // Tap-to-edit a logged entry → overwrite that history entry's numbers.
+  function onReviewEdit() {
+    if (reviewIndex == null) return;
+    const list = loadHistory();
+    const e = list[reviewIndex];
+    if (!e) return;
+    e.calories = Math.max(0, +$("review-calories").value || 0);
+    e.protein = Math.max(0, +$("review-protein").value || 0);
+    e.carbs = Math.max(0, +$("review-carbs").value || 0);
+    e.fat = Math.max(0, +$("review-fat").value || 0);
+    e.edited = true;
+    persistHistory(list);
+    renderDashboard();
+  }
+  ["review-calories", "review-protein", "review-carbs", "review-fat"].forEach(id =>
+    $(id).addEventListener("input", onReviewEdit));
   $("review-close").addEventListener("click", closeReview);
   $("review-backdrop").addEventListener("click", e => { if (e.target === $("review-backdrop")) closeReview(); });
   $("review-delete").addEventListener("click", () => {

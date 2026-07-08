@@ -207,9 +207,10 @@
       <h2 id="modal-name">—</h2>
       <div id="modal-category" class="detected-category">—</div>
       <div class="calorie-display">
-        <span id="modal-calories" class="calorie-number">0</span>
+        <input id="modal-calories" class="calorie-number cal-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Calories">
         <span class="calorie-unit">Calories</span>
       </div>
+      <div class="edit-hint">✎ Tap any number to correct it — saved to this food</div>
 
       <div class="portion-block">
         <div class="portion-title">Portion size</div>
@@ -222,9 +223,9 @@
       </button>
       <div id="modal-details" class="details-panel" hidden>
         <div class="macro-grid">
-          <div class="macro protein"><span class="macro-value" id="modal-protein">0g</span><span class="macro-label">Protein</span></div>
-          <div class="macro carbs"><span class="macro-value" id="modal-carbs">0g</span><span class="macro-label">Carbs</span></div>
-          <div class="macro fat"><span class="macro-value" id="modal-fat">0g</span><span class="macro-label">Fat</span></div>
+          <div class="macro protein"><span class="macro-value"><input id="modal-protein" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Protein grams">g</span><span class="macro-label">Protein</span></div>
+          <div class="macro carbs"><span class="macro-value"><input id="modal-carbs" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Carbs grams">g</span><span class="macro-label">Carbs</span></div>
+          <div class="macro fat"><span class="macro-value"><input id="modal-fat" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Fat grams">g</span><span class="macro-label">Fat</span></div>
         </div>
         <p id="modal-serving" class="serving-desc"></p>
         <h3 class="ingredients-title">Ingredients</h3>
@@ -288,13 +289,14 @@
         <span class="hist-cuisine" id="review-cuisine">—</span>
       </div>
       <div class="calorie-display">
-        <span id="review-calories" class="calorie-number">0</span>
+        <input id="review-calories" class="calorie-number cal-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Calories">
         <span class="calorie-unit">Calories</span>
       </div>
+      <div class="edit-hint">✎ Tap any number to correct this logged entry</div>
       <div class="macro-grid">
-        <div class="macro protein"><span class="macro-value" id="review-protein">0g</span><span class="macro-label">Protein</span></div>
-        <div class="macro carbs"><span class="macro-value" id="review-carbs">0g</span><span class="macro-label">Carbs</span></div>
-        <div class="macro fat"><span class="macro-value" id="review-fat">0g</span><span class="macro-label">Fat</span></div>
+        <div class="macro protein"><span class="macro-value"><input id="review-protein" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Protein grams">g</span><span class="macro-label">Protein</span></div>
+        <div class="macro carbs"><span class="macro-value"><input id="review-carbs" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Carbs grams">g</span><span class="macro-label">Carbs</span></div>
+        <div class="macro fat"><span class="macro-value"><input id="review-fat" class="macro-input" type="number" inputmode="numeric" min="0" value="0" aria-label="Fat grams">g</span><span class="macro-label">Fat</span></div>
       </div>
       <p id="review-context" class="serving-desc"></p>
       <p id="review-time" class="serving-desc"></p>
