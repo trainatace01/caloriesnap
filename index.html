@@ -59,7 +59,8 @@
           <div class="detected-row">
             <div>
               <div class="detected-label">Detected</div>
-              <div id="result-name" class="detected-name">—</div>
+              <input id="result-name" class="detected-name name-input" type="text" maxlength="60" value="—" readonly aria-label="Food name">
+              <div id="result-name-hint" class="name-hint" hidden>✎ Tap the name to rename it</div>
               <div id="result-category" class="detected-category">—</div>
             </div>
             <div id="result-confidence" class="confidence-badge">—%</div>
@@ -110,6 +111,8 @@
 
           <div id="result-cuisine-picker" class="meal-picker"></div>
           <div id="result-meal-picker" class="meal-picker"></div>
+
+          <button id="btn-save-library" class="btn btn-secondary btn-full" hidden>💾 Save to Library</button>
 
           <div class="result-actions">
             <button id="btn-save" class="btn btn-primary">✓ Log Meal</button>

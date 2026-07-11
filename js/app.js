@@ -311,6 +311,7 @@
       currentScan.confidence = null; // manually chosen
       currentScan.portionIdx = 1;
       currentScan.prepIdx = null; // ask how it was prepared
+      currentScan.isPackaged = false; // picked a library dish — not a barcode product
       showView("scan");
       renderScanResult();
     }
@@ -544,7 +545,15 @@
     if (dish) {
       $("result-detected").hidden = false;
       $("result-unknown").hidden = true;
-      $("result-name").textContent = dish.name;
+      // Name: editable only for transient barcode products (safe to rename —
+      // not a shared library record). Library/custom dishes stay read-only.
+      const nameEditable = !!currentScan.isPackaged && !dish.custom;
+      const nameEl = $("result-name");
+      nameEl.value = dish.name;
+      nameEl.readOnly = !nameEditable;
+      nameEl.classList.toggle("editable", nameEditable);
+      $("result-name-hint").hidden = !nameEditable;
+      $("btn-save-library").hidden = !nameEditable;
       $("result-category").textContent = dish.category + " Category";
       const conf = currentScan.confidence;
       const badge = $("result-confidence");
@@ -669,6 +678,57 @@
     $("result-details-toggle").setAttribute("aria-expanded", String(open));
   });
 
+  // Rename a barcode product (transient dish — safe to mutate directly).
+  $("result-name").addEventListener("input", () => {
+    if (!currentScan || !currentScan.dish || $("result-name").readOnly) return;
+    currentScan.dish.name = $("result-name").value.trim() || currentScan.dish.name;
+  });
+
+  // Save a barcode product into the library for future scans.
+  $("btn-save-library").addEventListener("click", async () => {
+    if (!currentScan || !currentScan.dish || !currentScan.isPackaged) return;
+    const dish = currentScan.dish;
+    const code = dish.barcode || (dish.id.startsWith("barcode-") ? dish.id.slice(8) : null);
+
+    // Duplicate guard — already saved from an earlier scan of this barcode.
+    const existing = code && customFoods.find(f => f.barcode === code);
+    if (existing) {
+      currentScan.dish = existing;
+      $("btn-save-library").hidden = true;
+      toast("Already in your library");
+      return;
+    }
+
+    const name = ($("result-name").value.trim() || dish.name).slice(0, 60);
+    const s = resultNutrition(); // current serving numbers incl. any tap-edits
+    const m = PORTIONS[currentScan.portionIdx].mult || 1; // store ×1.0 base
+    const photo = await downscale(currentScan.photo, 400);
+    const saved = {
+      id: "custom-" + Date.now(),
+      name,
+      category: currentScan.cuisine || dish.category || "Others",
+      calories: Math.round(s.calories / m), protein: Math.round(s.protein / m),
+      carbs: Math.round(s.carbs / m), fat: Math.round(s.fat / m),
+      servingDesc: dish.servingDesc || "",
+      ingredients: dish.ingredients || [],
+      keywords: [name.toLowerCase()],
+      img: photo,
+      barcode: code,
+      custom: true,
+    };
+    customFoods.push(saved);
+    persistCustomFoods();
+    renderGrid();
+    currentScan.dish = saved; // Log Meal now references the saved food
+    currentScan.edited = false; currentScan.override = null;
+    updateResultNutrition(); // re-sync display from the saved base × portion
+    $("btn-save-library").hidden = true;
+    $("result-name").readOnly = true;
+    $("result-name").classList.remove("editable");
+    $("result-name-hint").hidden = true;
+    toast(`Saved "${name}" to library ✓`);
+  });
+
   $("btn-wrong").addEventListener("click", enterPickerMode);
   $("btn-pick-manual").addEventListener("click", enterPickerMode);
   $("btn-rescan").addEventListener("click", () => {
@@ -731,6 +791,16 @@
       return;
     }
 
+    // Scanned this product before and saved it? Use the saved food directly —
+    // keeps the user's corrected name/values and works offline.
+    const savedFood = customFoods.find(f => f.barcode === code);
+    if (savedFood) {
+      currentScan = { photo: dataUrl, dish: savedFood, confidence: null, portionIdx: 1, prepIdx: 0, isPackaged: true, aiResult: null };
+      renderScanResult();
+      $("result-confidence").textContent = "Barcode ✓ saved";
+      return;
+    }
+
     $("analyzing-text").textContent = `Barcode ${code} — looking up product…`;
     let product = null;
     try { product = await Barcode.lookupProduct(code); }
@@ -746,6 +816,7 @@
         servingDesc: product.servingDesc,
         ingredients: product.ingredients,
         keywords: [], img: null,
+        barcode: product.code,
       };
       renderScanResult();
     } else {

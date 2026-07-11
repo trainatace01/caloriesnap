@@ -594,6 +594,17 @@ body {
 .macro-input:focus { border-bottom-color: var(--green); }
 .edit-hint { text-align: center; font-size: .74rem; color: var(--ink-faint); margin: 2px 0 8px; }
 
+/* ---- Round 8: editable product name (barcode results) ---- */
+.name-input {
+  border: none; background: transparent; outline: none;
+  font-family: inherit; font-size: inherit; font-weight: inherit;
+  letter-spacing: inherit; color: inherit;
+  width: 100%; padding: 0; display: block;
+}
+.name-input.editable { border-bottom: 2px dashed var(--line); }
+.name-input.editable:focus { border-bottom-color: var(--green); }
+.name-hint { font-size: .72rem; color: var(--ink-faint); margin-top: 2px; }
+
 /* ---- Round 6: history tags + tappable rows ---- */
 .history-item { cursor: pointer; }
 .hist-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
