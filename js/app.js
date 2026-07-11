@@ -262,6 +262,8 @@
       </button>`;
     }).join("");
     $("no-results").hidden = foods.length > 0;
+    $("btn-library-add").textContent = activeCategory === "All"
+      ? "＋ Add Food" : `＋ Add Food to ${activeCategory}`;
   }
 
   $("category-tabs").addEventListener("click", e => {
@@ -828,6 +830,23 @@
     }
   }
 
+  // Fetch a web image (Wikipedia/OFF — CORS-enabled hosts) and store it as a
+  // small local dataURL so the library keeps working offline. Fetch→blob→
+  // object URL avoids canvas tainting. Returns null on any failure.
+  async function webImageToDataUrl(url) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const dataUrl = await downscale(objUrl, 400);
+      URL.revokeObjectURL(objUrl);
+      return dataUrl;
+    } catch {
+      return null;
+    }
+  }
+
   // Downscale a photo dataURL to keep localStorage small.
   function downscale(dataUrl, maxSize) {
     return new Promise(resolve => {
@@ -1049,11 +1068,24 @@
   });
 
   /* ---------- add new food (grow the library from scans) ---------- */
-  function openAddFood() {
-    if (!currentScan) { toast("Scan a food photo first"); return; }
-    $("addfood-photo").innerHTML = `<img src="${currentScan.photo}" alt="Your food photo">`;
+  // source: "scan" (from a scan photo, today's flow) or "library"
+  // (＋ Add Food in Browse Menu — no photo; image is fetched from the web).
+  let afSource = "scan";
+  let afWebPhoto = null;
+
+  function openAddFood(source = "scan") {
+    afSource = source;
+    afWebPhoto = null;
+    if (source === "scan") {
+      if (!currentScan) { toast("Scan a food photo first"); return; }
+      $("addfood-photo").innerHTML = `<img src="${currentScan.photo}" alt="Your food photo">`;
+      afCuisine = currentScan.cuisine || getLastCuisine();
+    } else {
+      $("addfood-photo").innerHTML =
+        `<div class="addfood-placeholder">🍽️<span>Type the food's name — we'll search online for its photo and nutrition</span></div>`;
+      afCuisine = (activeCategory !== "All" && activeCategory) || getLastCuisine();
+    }
     $("addfood-form").reset();
-    afCuisine = currentScan.cuisine || getLastCuisine();
     renderPills("af-cuisine-pills", { label: "Cuisine *", items: allCuisines(), selected: afCuisine, allowNew: true });
     $("af-error").hidden = true;
     $("af-lookup-status").hidden = true;
@@ -1101,6 +1133,15 @@
         if (hit.ingredients.length && !$("af-ingredients").value.trim()) {
           $("af-ingredients").value = hit.ingredients.join(", ");
         }
+        // Library mode: also fetch the food's photo from the web (non-blocking).
+        if (afSource === "library" && hit.image && !afWebPhoto) {
+          webImageToDataUrl(hit.image).then(dataUrl => {
+            if (dataUrl && afSource === "library" && !$("addfood-backdrop").hidden) {
+              afWebPhoto = dataUrl;
+              $("addfood-photo").innerHTML = `<img src="${dataUrl}" alt="Food photo from the web">`;
+            }
+          });
+        }
         status.textContent = `✓ Found “${hit.name}” (${hit.source}). ${hit.servingNote}. Adjust anything that looks off.`;
       } else {
         status.classList.add("error");
@@ -1133,8 +1174,9 @@
     document.body.style.overflow = "";
   }
 
-  $("btn-add-new").addEventListener("click", openAddFood);
-  $("btn-add-new-2").addEventListener("click", openAddFood);
+  $("btn-add-new").addEventListener("click", () => openAddFood("scan"));
+  $("btn-add-new-2").addEventListener("click", () => openAddFood("scan"));
+  $("btn-library-add").addEventListener("click", () => openAddFood("library"));
   $("addfood-close").addEventListener("click", closeAddFood);
   $("af-cancel").addEventListener("click", closeAddFood);
   $("addfood-backdrop").addEventListener("click", e => {
@@ -1157,7 +1199,8 @@
       err.hidden = false;
       return;
     }
-    const photo = await downscale(currentScan.photo, 400);
+    const fromScan = afSource === "scan" && currentScan;
+    const photo = fromScan ? await downscale(currentScan.photo, 400) : afWebPhoto;
     const dish = {
       id: "custom-" + Date.now(),
       name, category, calories,
@@ -1170,28 +1213,40 @@
       img: photo,
       custom: true,
     };
-    // Fingerprint the photo so future scans of this dish are recognised.
-    try {
-      const embedImg = new Image();
-      embedImg.src = currentScan.photo;
-      if (await imageReady(embedImg)) {
-        dish.embedding = await Classifier.embed(embedImg);
+    // Fingerprint the scan photo so future scans of this dish are recognised
+    // (library adds have a web/stock photo — not useful as a fingerprint).
+    if (fromScan) {
+      try {
+        const embedImg = new Image();
+        embedImg.src = currentScan.photo;
+        if (await imageReady(embedImg)) {
+          dish.embedding = await Classifier.embed(embedImg);
+        }
+      } catch (err) {
+        console.warn("Couldn't fingerprint photo (offline?):", err.message);
       }
-    } catch (err) {
-      console.warn("Couldn't fingerprint photo (offline?):", err.message);
     }
 
     customFoods.push(dish);
     persistCustomFoods();
     renderGrid();
     closeAddFood();
-    exitPickerMode();
-    currentScan.dish = dish;
-    currentScan.confidence = null;
-    currentScan.portionIdx = 1;
-    currentScan.prepIdx = 0; // user already entered calories as prepared
-    showView("scan");
-    renderScanResult();
+
+    if (fromScan) {
+      exitPickerMode();
+      currentScan.dish = dish;
+      currentScan.confidence = null;
+      currentScan.portionIdx = 1;
+      currentScan.prepIdx = 0; // user already entered calories as prepared
+      showView("scan");
+      renderScanResult();
+    } else {
+      // Added from Browse Menu — jump to the food's category so it's visible.
+      activeCategory = category;
+      renderTabs();
+      renderGrid();
+      showView("library");
+    }
     toast(`Added "${name}" to ${category} ✓`);
   });
 

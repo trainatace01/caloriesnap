@@ -13,7 +13,7 @@ const Nutrition = (() => {
   // Note: the sg. subdomain sends CORS headers (world.'s legacy search often
   // doesn't respond); it also ranks Singapore/Malaysia regional foods first.
   const OFF_HOSTS = ["https://sg.openfoodfacts.org", "https://world.openfoodfacts.org"];
-  const OFF_QS = "/cgi/search.pl?search_simple=1&action=process&json=1&page_size=5&fields=product_name,product_name_en,nutriments,serving_size,ingredients_text";
+  const OFF_QS = "/cgi/search.pl?search_simple=1&action=process&json=1&page_size=5&fields=product_name,product_name_en,nutriments,serving_size,ingredients_text,image_front_url,image_url";
   const DISH_SERVING_G = 300; // assumed cooked-dish serving when source is per-100g
 
   const round1 = n => Math.round(n * 10) / 10;
@@ -110,8 +110,25 @@ const Nutrition = (() => {
       name: prod.product_name_en || prod.product_name || query,
       source: "Open Food Facts",
       ingredients: splitIngredients(prod.ingredients_text),
+      image: prod.image_front_url || prod.image_url || null,
       ...vals,
     };
+  }
+
+  /* ---- web image for a dish name (Wikipedia article lead image) ---- */
+  // Same source the bundled library photos came from; the REST summary
+  // endpoint is CORS-enabled. Returns an image URL or null.
+  async function fetchImage(name) {
+    try {
+      const t = encodeURIComponent(name.trim().replace(/\s+/g, "_"));
+      const resp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${t}`);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const url = (data.thumbnail && data.thumbnail.source) || (data.originalimage && data.originalimage.source) || null;
+      return url && !/\.svg/i.test(url) ? url : null;
+    } catch {
+      return null;
+    }
   }
 
   /* ---- public ---- */
@@ -152,8 +169,11 @@ const Nutrition = (() => {
     // Every source errored (rate limit / outage) vs. a genuine "not found" —
     // callers show different messages for each.
     if (!best && failures === attempts) throw new Error("all nutrition sources unavailable");
+    // Attach a dish photo when the nutrition source didn't provide one
+    // (USDA never does; Wikipedia covers dishes like "Mee Soto").
+    if (best && !best.image) best.image = await fetchImage(name);
     return best;
   }
 
-  return { lookup };
+  return { lookup, fetchImage };
 })();

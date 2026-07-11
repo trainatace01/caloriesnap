@@ -594,6 +594,18 @@ body {
 .macro-input:focus { border-bottom-color: var(--green); }
 .edit-hint { text-align: center; font-size: .74rem; color: var(--ink-faint); margin: 2px 0 8px; }
 
+/* ---- Round 9: add-food-from-library photo placeholder ---- */
+.addfood-placeholder {
+  height: 160px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  background: var(--bg); border: 2px dashed var(--line); border-radius: 12px;
+  font-size: 2rem; text-align: center;
+}
+.addfood-placeholder span {
+  font-size: .78rem; color: var(--ink-faint); font-weight: 600;
+  max-width: 240px; line-height: 1.4;
+}
+
 /* ---- Round 8: editable product name (barcode results) ---- */
 .name-input {
   border: none; background: transparent; outline: none;
